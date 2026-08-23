@@ -14,6 +14,8 @@ A .NET CLI tool for LLM-based coding agents to interact with the **Quotation Fac
 - **File uploads** — `--file` and `--form` options for multipart/form-data uploads (geometry files, engineering drawings).
 - **Bearer token auth** — persistent storage via `qfc auth set-token` (survives across shell sessions) or `QFC_ACCESS_TOKEN` env var.
 - **Live UI preview** — `qfc serve` reverse-proxies the Rhodium24 web app through localhost with automatic Auth0 authentication. Factory mode (full UI) or portal mode (`--party-id` for self-service buyer view). Multi-layer caching (persistent disk cache, HTML cache, speculative API prefetch) — page loads in ~500ms with warm cache.
+- **MCP 2.0 server** — `qfc mcp` exposes the API to any MCP client (Claude Desktop, Cursor, VS Code) via the official ModelContextProtocol C# SDK v2 (protocol revision 2026-07-28). Meta-tools (`discover_endpoints`, `describe_endpoint`, `get_schema`, `call_api`) are access-scoped to server surfaces (contributor / admin / system). Runs over **stdio** (stored token) or **HTTP as an OAuth 2.1 resource server** (`--http`) that validates callers' Auth0 JWTs and forwards them downstream.
+- **Run as an OS service** — `qfc service install` registers a long-running server (`mcp --http` or `serve`) as a **Windows service** or **systemd unit**, starting on boot and restarting on failure. `--print` previews the definition for both platforms without elevation.
 - **LLM-optimized output** — pretty-printed JSON to stdout, null fields omitted, no unicode escapes, auto-generated summaries for undocumented endpoints, `_next` guidance fields, error body truncation (500 chars), and fuzzy tag suggestions on empty results.
 - **Cross-platform** — all output, examples, and commands work identically on Windows (PowerShell, cmd), macOS, Linux, and Git Bash. No platform-specific syntax in generated commands.
 - **Global .NET tool** — install once, use everywhere as `qfc`.
@@ -197,6 +199,53 @@ qfc health
 ```bash
 qfc config show
 ```
+
+### MCP 2.0 Server
+
+Expose the API to MCP clients (Claude Desktop, Cursor, VS Code) with `qfc mcp`. Built on the official ModelContextProtocol C# SDK v2 (protocol revision 2026-07-28 — stateless, discovery-first).
+
+```bash
+# stdio transport (default) — uses the stored qfc token; point your MCP client at this command
+qfc mcp --access contributor
+
+# Expose specific surfaces only (repeatable). Surfaces: rfq, quotation, order,
+# procurement, platform-config, portal-config, system
+qfc mcp --surface quotation --surface procurement
+
+# Enable mutating calls (POST/PUT/DELETE) — read-only by default
+qfc mcp --access contributor --allow-writes
+
+# HTTP transport as an OAuth 2.1 resource server (integrates with Auth0)
+# Validates each caller's Auth0 JWT and forwards it to the backend.
+qfc mcp --http --port 5200 --public-url https://mcp.example.com
+
+# Local HTTP without auth (development only — never expose publicly)
+qfc mcp --http --no-auth
+```
+
+Tools exposed: `list_surfaces`, `discover_endpoints`, `describe_endpoint`, `get_schema`, `call_api` — all filtered to the server's access scope. On the HTTP transport the server advertises Auth0 via RFC 9728 Protected Resource Metadata at `/.well-known/oauth-protected-resource` and challenges unauthenticated calls with a `401`.
+
+The `qf-*` skills are also exposed as **MCP prompts** — an MCP client discovers them via `prompts/list` and pulls a workflow with `prompts/get`, then executes its steps through `call_api`. Prompts are **filtered to the server's access scope** (a skill is shown when it references an endpoint in an allowed surface; skills that reference no endpoints are always shown). Point `--skills-dir` at the skills folder (defaults to `.claude/commands`), or disable with `--no-prompts`.
+
+### Run as an OS Service
+
+Register a long-running server (`mcp --http` by default, or `serve`) with the OS service manager. Requires Administrator (Windows) or root (Linux).
+
+```bash
+# Preview the service definition for both platforms — no elevation needed
+qfc service install --command "mcp --http --port 5200" --print
+
+# Install (Windows service via sc.exe, or systemd unit on Linux)
+qfc service install --name qfc-mcp --command "mcp --http --port 5200"
+
+# Control it
+qfc service start   --name qfc-mcp
+qfc service status  --name qfc-mcp
+qfc service stop    --name qfc-mcp
+qfc service uninstall --name qfc-mcp
+```
+
+On Linux the unit is `Type=notify` with `Restart=on-failure`; use `--user` and `--env-file` (e.g. to supply `QFC_ACCESS_TOKEN` for a `serve` service). When installing via `dotnet run`, pass `--exe-path` to the published `qfc(.exe)` binary.
 
 ## Documentation
 
