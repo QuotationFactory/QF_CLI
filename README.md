@@ -217,13 +217,23 @@ qfc mcp --access contributor --allow-writes
 
 # HTTP transport as an OAuth 2.1 resource server (integrates with Auth0)
 # Validates each caller's Auth0 JWT and forwards it to the backend.
+# Multi-tenant: each caller's scope is derived from their token roles (capped
+# by --access/--surface), so one instance serves contributor/admin/system tiers.
 qfc mcp --http --port 5200 --public-url https://mcp.example.com
 
 # Local HTTP without auth (development only — never expose publicly)
 qfc mcp --http --no-auth
 ```
 
-Tools exposed: `list_surfaces`, `discover_endpoints`, `describe_endpoint`, `get_schema`, `call_api` — all filtered to the server's access scope. On the HTTP transport the server advertises Auth0 via RFC 9728 Protected Resource Metadata at `/.well-known/oauth-protected-resource` and challenges unauthenticated calls with a `401`.
+Tools exposed: `whoami`, `find_party`, `list_surfaces`, `discover_endpoints`, `describe_endpoint`, `get_schema`, `call_api` — all filtered to the server's access scope. `whoami` returns the caller's identity and the parties (companies) they can act on (paginated; use `find_party` to search by name when the caller belongs to many). `call_api` refuses destructive or customer-facing actions (delete, cancel, send, ERP export) until re-called with `confirm: true`. On the HTTP transport the server advertises Auth0 via RFC 9728 Protected Resource Metadata at `/.well-known/oauth-protected-resource` and challenges unauthenticated calls with a `401`.
+
+**Multi-tenant, per-caller scope.** On the authenticated HTTP transport, each caller's scope is derived from the roles in their Auth0 token (Reader/Contributor → contributor surfaces, Admin → +admin, SysAdmin → +system), capped by the instance's `--access`/`--surface` ceiling — so a single service instance serves different tiers to different callers, each acting as their own Auth0 identity.
+
+It works with today's tokens without any Auth0 change: a token that carries **no role/permission claim** falls back to the instance scope (whatever `--access`/`--surface` the instance was launched with), and per-caller differentiation activates automatically once the tokens start carrying roles. To emit roles, add them to the Auth0 access token (e.g. via an Action) and set `Auth0RolesClaim` if they live under a namespaced claim. Use `--no-per-caller-scope` to force the fixed instance scope for everyone. (stdio always uses the fixed scope; the backend enforces real permissions on every call regardless.)
+
+**Party isolation (multi-tenant).** On the authenticated HTTP transport, `call_api` refuses a request that targets a party the caller is not a member of (resolved from their `/api/user` profile), returning `PARTY_FORBIDDEN` before the request reaches the backend. So a single centralized instance — e.g. one Quotation Factory hosts for its Customer Success team and lists in the ChatGPT / Claude MCP directories — safely serves many callers: each customer reaches only their own party, while a cross-party Customer Success user reaches all of theirs. Agents call `whoami` to discover which parties they may use. Disable the MCP-layer check with `--no-party-check` (the backend still enforces access).
+
+For hosting: `--bind 0.0.0.0` exposes the port directly (e.g. in a container behind an ingress; default is loopback), an unauthenticated `/health` endpoint backs orchestrator probes, and every `call_api` outcome is written to stderr as a structured audit line (caller, method, path, surface, status). `call_api` also accepts a `files` array (local `path` on stdio, base64 `contentBase64` when hosted) for CAD/drawing uploads, and returns binary responses (PDF/zip) base64-encoded rather than corrupting them.
 
 The `qf-*` skills are also exposed as **MCP prompts** — an MCP client discovers them via `prompts/list` and pulls a workflow with `prompts/get`, then executes its steps through `call_api`. Prompts are **filtered to the server's access scope** (a skill is shown when it references an endpoint in an allowed surface; skills that reference no endpoints are always shown). Point `--skills-dir` at the skills folder (defaults to `.claude/commands`), or disable with `--no-prompts`.
 
