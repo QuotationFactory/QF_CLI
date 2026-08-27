@@ -12,7 +12,7 @@ A .NET CLI tool for LLM-based coding agents to interact with the **Quotation Fac
 - **Nesting summary** — `qfc api nesting-summary` aggregates cutting plan utilization and remnant strategies for a project in one command. Auto-detects partyId/projectId from navigation context when `qfc serve` is running.
 - **Dry-run validation** — `--dry-run` on POST/PUT validates request body against the OpenAPI schema without sending.
 - **File uploads** — `--file` and `--form` options for multipart/form-data uploads (geometry files, engineering drawings).
-- **Bearer token auth** — persistent storage via `qfc auth set-token` (survives across shell sessions) or `QFC_ACCESS_TOKEN` env var.
+- **Browser OAuth auth** — persistent access and refresh tokens via `qfc auth login`, renewed shortly before expiry. Manual non-refreshable tokens remain available via `qfc auth set-token` or `QFC_ACCESS_TOKEN`.
 - **Live UI preview** — `qfc serve` reverse-proxies the Rhodium24 web app through localhost with automatic Auth0 authentication. Factory mode (full UI) or portal mode (`--party-id` for self-service buyer view). Multi-layer caching (persistent disk cache, HTML cache, speculative API prefetch) — page loads in ~500ms with warm cache.
 - **MCP 2.0 server** — `qfc mcp` exposes the API to any MCP client (Claude Desktop, Cursor, VS Code) via the official ModelContextProtocol C# SDK v2 (protocol revision 2026-07-28). Meta-tools (`discover_endpoints`, `describe_endpoint`, `get_schema`, `call_api`) are access-scoped to server surfaces (contributor / admin / system). Runs over **stdio** (stored token) or **HTTP as an OAuth 2.1 resource server** (`--http`) that validates callers' Auth0 JWTs and forwards them downstream.
 - **Run as an OS service** — `qfc service install` registers a long-running server (`mcp --http` or `serve`) as a **Windows service** or **systemd unit**, starting on boot and restarting on failure. `--print` previews the definition for both platforms without elevation.
@@ -28,7 +28,7 @@ The recommended workflow for an AI agent using this CLI:
 
 ```bash
 # 1. Authenticate (persistent — survives across sessions, works on all platforms)
-qfc auth set-token eyJ...
+qfc auth login
 
 # 2. Discover available endpoints (--compact saves context window tokens)
 qfc api discover --compact                # one-line-per-endpoint text output
@@ -65,8 +65,10 @@ qfc api batch --ops '[{"method":"GET","path":"/api/parties/{partyId}/projects","
 **Persistent storage (recommended):**
 
 ```bash
-qfc auth set-token eyJ...
+qfc auth login
 ```
+
+Browser login stores renewable credentials. Use `qfc auth set-token eyJ...` only when browser OAuth is unavailable; manually copied tokens cannot be refreshed.
 
 **Or via environment variable (current session only):**
 
@@ -86,7 +88,7 @@ To get a token:
 3. Search for `getProjectsPaged` in the filter
 4. Click the request → Headers → copy the `Authorization` value (after "Bearer ")
 
-Run `qfc auth login` for step-by-step instructions, or `qfc auth status` to check.
+Run `qfc auth login` for renewable browser credentials, or `qfc auth status` to check expiry and refresh availability.
 
 ### Configure
 
@@ -107,7 +109,7 @@ Or use environment variables (also supported via a `.env` file in the project ro
 
 | Variable | Description |
 |----------|-------------|
-| `QFC_ACCESS_TOKEN` | Bearer token (takes precedence over stored token). Use `qfc auth set-token` for persistent storage instead. |
+| `QFC_ACCESS_TOKEN` | Non-refreshable Bearer token (takes precedence over stored OAuth credentials). Prefer `qfc auth login` for persistent interactive use. |
 | `QFC_API_BASE_URL` | API base URL |
 | `QFC_SWAGGER_PATH` | Path to a local `swagger.json` to override auto-caching |
 
