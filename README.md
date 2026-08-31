@@ -13,6 +13,7 @@ A .NET CLI tool for LLM-based coding agents to interact with the **Quotation Fac
 - **Dry-run validation** — `--dry-run` on POST/PUT validates request body against the OpenAPI schema without sending.
 - **File uploads** — `--file` and `--form` options for multipart/form-data uploads (geometry files, engineering drawings).
 - **Browser OAuth auth** — persistent access and refresh tokens via `qfc auth login`, renewed shortly before expiry. Manual non-refreshable tokens remain available via `qfc auth set-token` or `QFC_ACCESS_TOKEN`.
+- **Unattended service auth** — `qfc auth login --client-id <id> --client-secret <secret>` persists a party-scoped service credential and reuses its access token across commands until near expiry. Environment-only `QFC_CLIENT_ID`/`QFC_CLIENT_SECRET` remains diskless.
 - **Live UI preview** — `qfc serve` reverse-proxies the Rhodium24 web app through localhost with automatic Auth0 authentication. Factory mode (full UI) or portal mode (`--party-id` for self-service buyer view). Multi-layer caching (persistent disk cache, HTML cache, speculative API prefetch) — page loads in ~500ms with warm cache.
 - **MCP 2.0 server** — `qfc mcp` exposes the API to any MCP client (Claude Desktop, Cursor, VS Code) via the official ModelContextProtocol C# SDK v2 (protocol revision 2026-07-28). Meta-tools (`discover_endpoints`, `describe_endpoint`, `get_schema`, `call_api`) are access-scoped to server surfaces (contributor / admin / system). Runs over **stdio** (stored token) or **HTTP as an OAuth 2.1 resource server** (`--http`) that validates callers' Auth0 JWTs and forwards them downstream.
 - **Run as an OS service** — `qfc service install` registers a long-running server (`mcp --http` or `serve`) as a **Windows service** or **systemd unit**, starting on boot and restarting on failure. `--print` previews the definition for both platforms without elevation.
@@ -69,6 +70,8 @@ qfc auth login
 ```
 
 Browser login stores renewable credentials. Use `qfc auth set-token eyJ...` only when browser OAuth is unavailable; manually copied tokens cannot be refreshed.
+
+For unattended service authentication, run `qfc auth login --client-id <id> --client-secret <secret>`. QFC caches the resulting access token across commands and obtains a new one only near expiry. Authentication files are encrypted with Windows DPAPI for the current user. On platforms where OS-backed protection is unavailable, QFC warns and applies owner-only file (`0600`) and profile-directory (`0700`) permissions.
 
 **Or via environment variable (current session only):**
 
