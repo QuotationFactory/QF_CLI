@@ -6,7 +6,7 @@ A .NET CLI tool for LLM-based coding agents to interact with the **Quotation Fac
 
 - **API Discovery** — `qfc api discover` lists all endpoints grouped by tag, with `--search`, `--tag`, `--method`, and `--compact` filters. Compact mode outputs one line per endpoint for minimal context window usage.
 - **Endpoint Inspection** — `qfc api describe <path>` shows parameters, request/response schemas, idempotency hints, and a cross-platform example call. Use `--expand-refs` to inline referenced schema types.
-- **Generic REST commands** — `qfc api get|post|put|delete <path>` with `--param`, `--query`, `--body`, and `--body-file` options. `--body-file` reads JSON from a file, avoiding PowerShell 5.1 quote-stripping issues with `--body`.
+- **Generic REST commands** — `qfc api get|post|put|delete <path>` with `--param`, `--query`, `--body`, and `--body-file` options. Use repeatable `--header "X-Name: value"` (or `-H`) for custom `X-` request headers such as `X-Party-Id`. `--body-file` reads JSON from a file, avoiding PowerShell 5.1 quote-stripping issues with `--body`.
 - **Response filtering** — `--fields a,b,c` keeps only selected fields, `--max-items N` truncates arrays with metadata, `--quiet` suppresses output on success.
 - **Batch operations** — `qfc api batch --ops '[...]'` executes multiple API calls in a single invocation with optional `--continue-on-error`.
 - **Nesting summary** — `qfc api nesting-summary` aggregates cutting plan utilization and remnant strategies for a project in one command. Auto-detects partyId/projectId from navigation context when `qfc serve` is running.
